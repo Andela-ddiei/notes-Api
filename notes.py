@@ -1,43 +1,60 @@
-from flask import Flask
-from flask_restful import fields, marshal_with, Resource, Api, reqparse
+from flask import request, jsonify
+from flask_restful import fields, marshal, Resource, reqparse
+from flask_httpauth import HTTPBasicAuth
+from models import Note, User, db
 
-app = Flask(__name__)
-
-api = Api(app)
-
-from models import Note, db
+auth = HTTPBasicAuth()
 
 
-@app.route("/")
-def hello():
-    return "Hello World!"
+@auth.verify_password
+def verify_token(username, password):
+    data = User.verify_token(request.headers.get('Authorization') or "")
+    if data:
+        user = User.query.get(data['id'])
+        return user
+    else:
+        return False
 
 
 class NoteResource(Resource):
     new_dict = {
         "id": fields.Integer,
         "title": fields.String,
-        "content": fields.String
+        "content": fields.String,
+        "user_id": fields.Integer
     }
 
-    @marshal_with(new_dict)
+    @auth.login_required
     def get(self):
         notes = Note.query.all()
-        return notes, 200
+        if notes:
+            return marshal(notes, self.new_dict), 200
+        else:
+            return {"message": "No notes have been created"}, 200
 
-    @marshal_with(new_dict)
+    @auth.login_required
     def post(self):
+        if not request.json:
+            return {"message": "Request must be valid JSON"}, 400
+
+        user = User.verify_token(request.headers.get('Authorization'))
+
         parser = reqparse.RequestParser()
         parser.add_argument('title')
         parser.add_argument('content')
 
         args = parser.parse_args()
 
+        if not args["title"] or not args["content"]:
+            return {"message": "Request must contain title and content"}, 400
+
         new_note = Note(args["title"], args["content"])
+        new_note.user_id = user["id"]
+
         db.session.add(new_note)
         db.session.commit()
 
-        return new_note, 201
+        return marshal(new_note, self.new_dict), 201
 
 
 class NotesResourceDetail(Resource):
@@ -47,35 +64,124 @@ class NotesResourceDetail(Resource):
         "content": fields.String
     }
 
-    @marshal_with(new_dict)
+    @auth.login_required
     def get(self, note_id):
+        user = User.verify_token(request.headers.get('Authorization'))
         note = Note.query.get(note_id)
-        return note, 200
+        if note.user_id == user["id"]:
+            return marshal(note, self.new_dict), 200
+        else:
+            return {
+                "message": "You are not authorized for this operation"
+                }, 401
 
+    @auth.login_required
     def delete(self, note_id):
         note = Note.query.get(note_id)
-        db.session.delete(note)
-        db.session.commit()
+        if note:
+            db.session.delete(note)
+            db.session.commit()
 
-        return {}, 204
+            return {}, 204
+        else:
+            return{"message": "Note does not exist"}, 404
 
-    @marshal_with(new_dict)
+    @auth.login_required
     def put(self, note_id):
+        if not request.json:
+            return {"message": "Request must be valid JSON"}, 400
+
         note = Note.query.get(note_id)
+        if note:
+            parser = reqparse.RequestParser()
+            parser.add_argument('title')
+            parser.add_argument('content')
+
+            args = parser.parse_args()
+
+            note.title = args["title"]
+            note.content = args["content"]
+
+            db.session.add(note)
+            db.session.commit()
+
+            return marshal(note, self.new_dict), 200
+        else:
+            return{"message": "Note does not exist"}, 404
+
+
+class UserResource(Resource):
+    new_dict = {
+        "id": fields.Integer,
+        "username": fields.String
+    }
+
+    @auth.login_required
+    def get(self):
+        users = User.query.all()
+        if users:
+            return marshal(users, self.new_dict), 200
+        else:
+            return {"message": "No users exist"}, 200
+
+    def post(self):
+        if not request.json:
+            return {"message": "Request must be valid JSON"}, 400
 
         parser = reqparse.RequestParser()
-        parser.add_argument('title')
-        parser.add_argument('content')
+        parser.add_argument('username')
+        parser.add_argument('password')
 
         args = parser.parse_args()
 
-        note.title = args["title"]
-        note.content = args["content"]
-
-        db.session.add(note)
+        hashed_password = User.hash_password(args["password"])
+        new_user = User(args["username"], hashed_password)
+        db.session.add(new_user)
         db.session.commit()
 
-        return note, 200
+        return marshal(new_user, self.new_dict), 201
 
-api.add_resource(NoteResource, '/notes')
-api.add_resource(NotesResourceDetail, '/notes/<int:note_id>')
+
+class UserResourceDetail(Resource):
+    new_dict = {
+        "id": fields.Integer,
+        "username": fields.String
+    }
+
+    @auth.login_required
+    def get(self, user_id):
+        user = User.query.get(user_id)
+        if user:
+            return marshal(user, self.new_dict), 200
+        else:
+            return {"message": "This user does not exist"}, 404
+
+    @auth.login_required
+    def delete(self, user_id):
+        user = User.query.get(user_id)
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+
+            return {}, 204
+        else:
+            return {"message": "This user does not exist"}, 404
+
+
+class AuthResource(Resource):
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('username')
+        parser.add_argument('password')
+
+        args = parser.parse_args()
+        user = User.query.filter_by(username=args["username"]).first()
+
+        if user:
+            if user.verify_hash(args["password"], user.password):
+                token = user.generate_auth_token().decode("ascii")
+                return {"token": token}, 200
+            else:
+                return {"message": "Invalid password"}, 403
+        else:
+            return {"message": "This user does not exist"}, 404
