@@ -4,7 +4,7 @@ python:
 # command to install dependencies
 install:
   - pip install -r requirements.txt
-  - pip install mysqldb
+  - pip install mysqlclient
 # command to run tests
 script: coverage run -m unittest discover tests
 services:
