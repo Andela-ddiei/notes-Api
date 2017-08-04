@@ -15,3 +15,7 @@ class TestingConfiguration(Config):
     TESTING = True
     SQLALCHEMY_ECHO = False
     SQLALCHEMY_DATABASE_URI = os.environ["NOTES_DATABASE_URI"]
+
+
+class HerokuConfiguration(Config):
+    SQLALCHEMY_DATABASE_URI = os.environ["NOTES_DATABASE_URI"]
