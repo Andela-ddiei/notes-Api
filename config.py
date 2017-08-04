@@ -13,6 +13,5 @@ class DevelopmentConfiguration(Config):
 
 class TestingConfiguration(Config):
     TESTING = True
-    TESTING_DATABASE_URI = 'sqlite:///test.db'
-
     SQLALCHEMY_ECHO = False
+    SQLALCHEMY_DATABASE_URI = os.environ["NOTES_DATABASE_URI"]

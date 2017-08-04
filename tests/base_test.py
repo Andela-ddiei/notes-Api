@@ -1,27 +1,35 @@
 import unittest
+import json
+
 from models import db, User
 from faker import Factory
 from run import app
 
-fake = Factory.create()
-
 
 class BaseTest(unittest.TestCase):
     def setUp(self):
-        app.config.from_object('config.TestingConfiguration')
+        app.config.from_object("config.TestingConfiguration")
         db.drop_all()
         db.create_all()
         self.client = app.test_client()
 
-        self.password = fake.password()
+        self.fake = Factory.create()
+
+        self.password = self.fake.password()
 
         self.user = User(
-            username=fake.user_name(),
+            username=self.fake.user_name(),
             password=User.hash_password(self.password)
         )
 
         db.session.add(self.user)
         db.session.commit()
+
+    def get_token(self, username, password):
+        response = self.client.post("/users/login", data={"username": username,
+                                    "password": password})
+        response_data = json.loads(response.data.decode("ascii"))
+        return response_data["token"]
 
     def tearDown(self):
         db.session.remove()

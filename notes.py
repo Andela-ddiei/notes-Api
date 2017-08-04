@@ -133,6 +133,10 @@ class UserResource(Resource):
         parser.add_argument('password')
 
         args = parser.parse_args()
+        if not args["username"] or not args["password"]:
+            return {
+                "message": "Request must contain a username and a password"
+                }, 400
 
         hashed_password = User.hash_password(args["password"])
         new_user = User(args["username"], hashed_password)
