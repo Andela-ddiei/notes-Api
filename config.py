@@ -11,11 +11,11 @@ class DevelopmentConfiguration(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite:///notes.db'
 
 
-class TestingConfiguration(Config):
-    TESTING = True
-    SQLALCHEMY_ECHO = False
+class HerokuConfiguration(Config):
     SQLALCHEMY_DATABASE_URI = os.environ["NOTES_DATABASE_URI"]
 
 
-class HerokuConfiguration(Config):
+class TestingConfiguration(Config):
+    TESTING = True
+    SQLALCHEMY_ECHO = False
     SQLALCHEMY_DATABASE_URI = os.environ["NOTES_DATABASE_URI"]
