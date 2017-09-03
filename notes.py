@@ -77,12 +77,18 @@ class NotesResourceDetail(Resource):
 
     @auth.login_required
     def delete(self, note_id):
+        user = User.verify_token(request.headers.get('Authorization'))
         note = Note.query.get(note_id)
         if note:
-            db.session.delete(note)
-            db.session.commit()
-
-            return {}, 204
+            if note.user_id == user["id"]:
+                db.session.delete(note)
+                db.session.commit()
+                return {}, 204
+            else:
+                return {
+                    "message":
+                        ("You are not authorized to carry out this operation")},
+                401
         else:
             return{"message": "Note does not exist"}, 404
 
@@ -98,9 +104,10 @@ class NotesResourceDetail(Resource):
             parser.add_argument('content')
 
             args = parser.parse_args()
-
-            note.title = args["title"]
-            note.content = args["content"]
+            if args["title"]:
+                note.title = args["title"]
+            if args["content"]:
+                note.content = args["content"]
 
             db.session.add(note)
             db.session.commit()

@@ -29,7 +29,7 @@ class User(db.Model):
         return bcrypt.verify(password, hashed_password)
 
     def generate_auth_token(self):
-        auth_key = TimedJSONWebSignatureSerializer(app.config['SECRET_KEY'], expires_in = 60)
+        auth_key = TimedJSONWebSignatureSerializer(app.config['SECRET_KEY'], expires_in = 300)
         token = auth_key.dumps({'id': self.id})
         return token
 
